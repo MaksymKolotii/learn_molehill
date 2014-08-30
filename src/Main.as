@@ -9,12 +9,9 @@ package {
 	import flash.display3D.Context3DProgramType;
 	import flash.display3D.Context3DTextureFormat;
 	import flash.display3D.Context3DVertexBufferFormat;
-	import flash.display3D.IndexBuffer3D;
 	import flash.display3D.Program3D;
-	import flash.display3D.VertexBuffer3D;
 	import flash.display3D.textures.Texture;
 	import flash.events.Event;
-	import flash.events.MouseEvent;
 	import flash.geom.Matrix;
 	import flash.geom.Matrix3D;
 	import flash.geom.Vector3D;
@@ -23,94 +20,99 @@ package {
 	import flash.text.TextFormat;
 	import flash.utils.getTimer;
 
-	[SWF(frameRate=60, width=960, height=740)]
+	[SWF(frameRate=60, width=640, height=480)]
 	public class Main extends Sprite {
 
-		[Embed(source="../assets/texture.jpg")]
+		/* TEXTURES: Pure AS3 and Flex version:
+		 * if you are using Adobe Flash CS5
+		 * comment out the following: */
+		[Embed(source="../assets/A-12.png")]
 		private var myTextureBitmap:Class;
-
 		private var myTextureData:Bitmap = new myTextureBitmap();
-		// The Molehill Texture that uses the above myTextureData
+		[Embed(source="../assets/terrain_texture.jpg")]
+		private var terrainTextureBitmap:Class;
+		private var terrainTextureData:Bitmap = new terrainTextureBitmap();
+
+		// The Stage3d Texture that uses the above myTextureData
 		private var myTexture:Texture;
+		private var terrainTexture:Texture;
 
-		[Embed(source="../assets/my_texture.jpg")]
-		private var myTextureBitmap2:Class;
+		// The spaceship mesh data
+		[Embed(source="../assets/A-12.obj", mimeType="application/octet-stream")]
+		private var myObjData:Class;
+		private var myMesh:Stage3dObjParser;
 
-		private var myTextureData2:Bitmap = new myTextureBitmap2();
-		// The Molehill Texture that uses the above myTextureData
-		private var myTexture2:Texture;
+		// The terrain mesh data
+		[Embed(source="../assets/spaceship.obj", mimeType="application/octet-stream")]
+		private var terrainObjData:Class;
+		private var terrainMesh:Stage3dObjParser;
 
+		// used by the GUI
+		private var fpsLast:uint = getTimer();
+		private var fpsTicks:uint = 0;
+		private var fpsTf:TextField;
+		private var scoreTf:TextField;
+		private var score:uint = 0;
 		// constants used during inits
-		private const swfWidth:int = 960;
-		private const swfHeight:int = 640;
+		private const swfWidth:int = 640;
+		private const swfHeight:int = 480;
+		// for this demo, ensure ALL textures are 512x512
 		private const textureSize:int = 512;
 		// the 3d graphics window on the stage
 		private var context3D:Context3D;
-		// the compiled shader used to render our mesh
-		private var shaderProgram:Program3D;
-		// the uploaded vertexes used by our mesh
-		private var vertexBuffer:VertexBuffer3D;
-		// the uploaded indexes of each vertex of the mesh
-		private var indexBuffer:IndexBuffer3D;
-		// the data that defines our 3d mesh model
-		private var meshVertexData:Vector.<Number>;// the indexes that define what data is used by each vertex
-		private var meshIndexData:Vector.<uint>;
-		// matrices that affect the mesh location and camera angles
-		private var projectionMatrix:PerspectiveMatrix3D = new PerspectiveMatrix3D();
-		private var modelMatrix:Matrix3D = new Matrix3D();
-		private var viewMatrix:Matrix3D = new Matrix3D();
-		private var modelViewProjection:Matrix3D = new Matrix3D();
-		// a simple frame counter used for animation
-		private var t:Number = 0;
-		private var fpsTf:TextField;
+		// the compiled shaders used to render our mesh
 		private var shaderProgram1:Program3D;
 		private var shaderProgram2:Program3D;
 		private var shaderProgram3:Program3D;
 		private var shaderProgram4:Program3D;
-		private var fpsTicks:int;
-		private var fpsLast:uint;
+		// matrices that affect the mesh location and camera angles
+		private var projectionmatrix:PerspectiveMatrix3D =
+				new PerspectiveMatrix3D();
+		private var modelmatrix:Matrix3D = new Matrix3D();
+		private var viewmatrix:Matrix3D = new Matrix3D();
+		private var terrainviewmatrix:Matrix3D = new Matrix3D();
+		private var modelViewProjection:Matrix3D = new Matrix3D();
+		// a simple frame counter used for animation
+		private var t:Number = 0;
+		// a reusable loop counter
+		private var looptemp:int = 0;
 
 		public function Main() {
-			if (stage != null) {
+			if (stage != null)
 				init();
-			} else {
-				this.addEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
-			}
+			else
+				addEventListener(Event.ADDED_TO_STAGE, init);
 		}
 
 		//--------------------------------------------------------------------------
 		//   							PUBLIC METHODS
 		//--------------------------------------------------------------------------
-		private function init():void {
-			this.stage.scaleMode = StageScaleMode.NO_SCALE;
-			this.stage.align = StageAlign.TOP_LEFT;
-
-			this.stage.stage3Ds[0].addEventListener(Event.CONTEXT3D_CREATE, onContext3DCreate);
-			this.stage.stage3Ds[0].requestContext3D();
-
-			initGUI();
-		}
-
 		//--------------------------------------------------------------------------
 		//   					  PRIVATE\PROTECTED METHODS
 		//--------------------------------------------------------------------------
-		private function initData():void {
-			// Defines which vertex is used for each polygon
-			// In this example a square is made from two triangles
-			meshIndexData = new <uint>[
-				0, 1, 2,
-				0, 2, 3
-			];
+		private function init(e:Event = null):void {
+			if (hasEventListener(Event.ADDED_TO_STAGE))
+				removeEventListener(Event.ADDED_TO_STAGE, init);
+			// class constructor - sets up the stage
+			stage.scaleMode = StageScaleMode.NO_SCALE;
+			stage.align = StageAlign.TOP_LEFT;
+			// add some text labels
+			initGUI();
+			// and request a context3D from Stage3d
+			stage.stage3Ds[0].addEventListener(Event.CONTEXT3D_CREATE, onContext3DCreate);
+			stage.stage3Ds[0].requestContext3D();
+		}
 
-			// Raw data used for each of the 4 vertexes
-			// Position XYZ, texture coord UV, normal XYZ, vertex RGBA
-			meshVertexData = Vector.<Number>([
-				//X, Y, Z, U, V, nX, nY, nZ, R, G, B, A
-				-1, -1, 1, 0, 0, 0, 0, 1, 1.0, 0.0, 0.0, 1.0,
-				1, -1, 1, 1, 0, 0, 0, 1, 0.0, 1.0, 0.0, 1.0,
-				1, 1, 1, 1, 1, 0, 0, 1, 0.0, 0.0, 1.0, 1.0,
-				-1, 1, 1, 0, 1, 0, 0, 1, 1.0, 1.0, 1.0, 1.0
-			]);
+		private function updateScore():void {
+			// for now, you earn points over time
+			score++;
+			// padded with zeroes
+			if (score < 10) scoreTf.text = 'Score: 00000' + score;
+			else if (score < 100) scoreTf.text = 'Score: 0000' + score;
+			else if (score < 1000) scoreTf.text = 'Score: 000' + score;
+			else if (score < 10000) scoreTf.text = 'Score: 00' + score;
+			else if (score < 100000) scoreTf.text = 'Score: 0' + score;
+			else scoreTf.text = 'Score: ' + score;
 		}
 
 		private function initGUI():void {
@@ -127,6 +129,15 @@ package {
 			fpsTf.defaultTextFormat = myFormat;
 			fpsTf.text = "Initializing Stage3d...";
 			addChild(fpsTf);
+			// create a score display
+			scoreTf = new TextField();
+			scoreTf.x = 560;
+			scoreTf.y = 0;
+			scoreTf.selectable = false;
+			scoreTf.autoSize = TextFieldAutoSize.LEFT;
+			scoreTf.defaultTextFormat = myFormat;
+			scoreTf.text = "000000";
+			addChild(scoreTf);
 			// add some labels to describe each shader
 			var label1:TextField = new TextField();
 			label1.x = 100;
@@ -140,7 +151,6 @@ package {
 			label2.x = 400;
 			label2.y = 180;
 			label2.selectable = false;
-
 			label2.autoSize = TextFieldAutoSize.LEFT;
 			label2.defaultTextFormat = myFormat;
 			label2.text = "Shader 2: Vertex RGB";
@@ -163,85 +173,17 @@ package {
 			addChild(label4);
 		}
 
-		//--------------------------------------------------------------------------
-		//   							HANDLERS
-		//--------------------------------------------------------------------------
-		private function onAddedToStage(event:Event):void {
-			this.removeEventListener(Event.ADDED_TO_STAGE, onAddedToStage);
-		}
-
-		private function onContext3DCreate(event:Event):void {
-			/*Remove existing frame handler. Note that a context
-			 loss can occur at any time which will force you
-			 to recreate all objects we create here.
-			 A context loss occurs for instance if you hit
-			 CTRL-ALT-DELETE on Windows.
-			 It takes a while before a new context is available
-			 hence removing the enterFrame handler is important!*/
-			removeEventListener(Event.ENTER_FRAME, enterFrame);
-
-			// Obtain the current context
-			var t:Stage3D = event.target as Stage3D;
-			context3D = t.context3D;
-			if (context3D == null) {
-				// Currently no 3d context is available (error!)
-				return;
-			}
-
-			// Disabling error checking will drastically improve performance.
-			// If set to true, Flash will send helpful error messages regarding
-			// AGAL compilation errors, uninitialized program constants, etc.
-			context3D.enableErrorChecking = true;
-
-			// Initialize our mesh data
-			initData();
-
-			// The 3d back buffer size is in pixels
-			context3D.configureBackBuffer(swfWidth, swfHeight, 0, true);
-
-			// assemble all the shaders we need
-			initShaders();
-
-			// upload the mesh indexes
-			indexBuffer = context3D.createIndexBuffer(meshIndexData.length);
-			indexBuffer.uploadFromVector(meshIndexData, 0, meshIndexData.length);
-			// upload the mesh vertex data
-			// since our particular data is
-			// x, y, z, u, v, nx, ny, nz
-			// each vertex uses 8 array elements
-			vertexBuffer = context3D.createVertexBuffer(meshVertexData.length / 12, 12);
-			vertexBuffer.uploadFromVector(meshVertexData, 0, meshVertexData.length / 12);
-
-			this.myTexture = context3D.createTexture(textureSize, textureSize, Context3DTextureFormat.BGRA, false);
-			generateMipmap(this.myTexture, this.myTextureData);
-
-			this.myTexture2 = context3D.createTexture(textureSize, textureSize, Context3DTextureFormat.BGRA, false);
-			generateMipmap(this.myTexture2, this.myTextureData2);
-			// create projection matrix for our 3D scene
-			projectionMatrix.identity();
-			// 45 degrees FOV, 640/480 aspect ratio, 0.1=near, 100=far
-			projectionMatrix.perspectiveFieldOfViewRH(45.0, swfWidth / swfHeight, 0.01, 100.0);
-			// create a matrix that defines the camera location
-			viewMatrix.identity();
-			// move the camera back a little so we can see the mesh
-			viewMatrix.appendTranslation(0, 0, -7);
-
-			// start animating
-			this.addEventListener(Event.ENTER_FRAME, enterFrame);
-			this.stage.addEventListener(MouseEvent.MOUSE_WHEEL, onMouseWheel);
-		}
-
-		private function generateMipmap(texture:Texture, textureData:Bitmap):void {
-			// Generate mipmaps
-			var ws:int = textureData.bitmapData.width;
-			var hs:int = textureData.bitmapData.height;
+		public function uploadTextureWithMipmaps(dest:Texture, src:BitmapData):void {
+			var ws:int = src.width;
+			var hs:int = src.height;
 			var level:int = 0;
 			var tmp:BitmapData;
 			var transform:Matrix = new Matrix();
-			tmp = new BitmapData(ws, hs, true, 0x00000000);
+			var tmp2:BitmapData;
+			tmp = new BitmapData(src.width, src.height, true, 0x00000000);
 			while (ws >= 1 && hs >= 1) {
-				tmp.draw(textureData.bitmapData, transform, null, null, null, true);
-				texture.uploadFromBitmapData(tmp, level);
+				tmp.draw(src, transform, null, null, null, true);
+				dest.uploadFromBitmapData(tmp, level);
 				transform.scale(0.5, 0.5);
 				level++;
 				ws >>= 1;
@@ -254,8 +196,177 @@ package {
 			tmp.dispose();
 		}
 
-		private function initShaders():void {
+		private function onContext3DCreate(event:Event):void {
+			// Remove existing frame handler. Note that a context
+			// loss can occur at any time which will force you
+			// to recreate all objects we create here.
+			// A context loss occurs for instance if you hit
+			// CTRL-ALT-DELETE on Windows.
+			// It takes a while before a new context is available
+			// hence removing the enterFrame handler is important!
+			if (hasEventListener(Event.ENTER_FRAME))
+				removeEventListener(Event.ENTER_FRAME, enterFrame);
+			// Obtain the current context
+			var t:Stage3D = event.target as Stage3D;
+			context3D = t.context3D;
+			if (context3D == null) {
+				// Currently no 3d context is available (error!)
+				return;
+			}
+			// Disabling error checking will drastically improve performance.
+			// If set to true, Flash sends helpful error messages regarding
+			// AGAL compilation errors, uninitialized program constants, etc.
+			context3D.enableErrorChecking = true;
+			// Initialize our mesh data
+			initData();
+			// The 3d back buffer size is in pixels (2=antialiased)
+			context3D.configureBackBuffer(swfWidth, swfHeight, 2, true);
+			// assemble all the shaders we need
+			initShaders();
+			myTexture = context3D.createTexture(textureSize, textureSize, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(myTexture, myTextureData.bitmapData);
+			terrainTexture = context3D.createTexture(textureSize, textureSize, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(terrainTexture, terrainTextureData.bitmapData);
+			// create projection matrix for our 3D scene
+			projectionmatrix.identity();
+			// 45 degrees FOV, 640/480 aspect ratio, 0.1=near, 100=far
+			projectionmatrix.perspectiveFieldOfViewRH(45.0, swfWidth / swfHeight, 0.01, 5000.0);
+			// create a matrix that defines the camera location
+			viewmatrix.identity();
+			// move the camera back a little so we can see the mesh
+			viewmatrix.appendTranslation(0, 0, -43);
+			// tilt the terrain a little so it is coming towards us
+			terrainviewmatrix.identity();
+			terrainviewmatrix.appendRotation(-60, Vector3D.X_AXIS);
+			// start the render loop!
+			addEventListener(Event.ENTER_FRAME, enterFrame);
+		}
 
+		private function initData():void {
+			// parse the OBJ file and create buffers
+			myMesh = new Stage3dObjParser(myObjData, context3D, 1, true, true);
+//			parse the terrain mesh as well
+			terrainMesh = new Stage3dObjParser(terrainObjData, context3D, 1, true, true);
+		}
+
+		private function renderTerrain():void {
+			context3D.setTextureAt(0, terrainTexture);
+			// simple textured shader
+			context3D.setProgram(shaderProgram1);
+			// position
+			context3D.setVertexBufferAt(0, terrainMesh.positionsBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
+			// tex coord
+			context3D.setVertexBufferAt(1, terrainMesh.uvBuffer, 0, Context3DVertexBufferFormat.FLOAT_2);
+			// vertex rgba
+			context3D.setVertexBufferAt(2, terrainMesh.colorsBuffer, 0, Context3DVertexBufferFormat.FLOAT_4);
+			// set up camera angle
+			modelmatrix.identity();
+			// make the terrain face the right way
+			modelmatrix.appendRotation(-90, Vector3D.Y_AXIS);
+			// slowly move the terrain around
+			modelmatrix.appendTranslation(Math.cos(t / 300) * 1000, Math.cos(t / 200) * 1000 + 500, -130);
+			// clear the matrix and append new angles
+			modelViewProjection.identity();
+			modelViewProjection.append(modelmatrix);
+			modelViewProjection.append(terrainviewmatrix);
+			modelViewProjection.append(projectionmatrix);
+			// pass our matrix data to the shader program
+			context3D.setProgramConstantsFromMatrix(Context3DProgramType.VERTEX, 0, modelViewProjection, true);
+			context3D.drawTriangles(terrainMesh.indexBuffer, 0, terrainMesh.indexBufferCount);
+		}
+
+		//--------------------------------------------------------------------------
+		//   							HANDLERS
+		//--------------------------------------------------------------------------
+		private function enterFrame(e:Event):void {
+			// clear scene before rendering is mandatory
+			context3D.clear(0, 0, 0);
+			// move or rotate more each frame
+			t += 2.0;
+			// scroll and render the terrain once
+			renderTerrain();
+			// how far apart each of the 4 spaceships is
+			var dist:Number = 0.8;
+			// loop through each mesh we want to draw
+			for (looptemp = 0; looptemp < 4; looptemp++) {
+				// clear the transformation matrix to 0,0,0
+				modelmatrix.identity();
+				// each mesh has a different texture,
+				// shader, position and spin speed
+				switch (looptemp) {
+					case 0:
+						context3D.setTextureAt(0, myTexture);
+						context3D.setProgram(shaderProgram1);
+						modelmatrix.appendRotation(t * 0.7, Vector3D.Y_AXIS);
+						modelmatrix.appendRotation(t * 0.6, Vector3D.X_AXIS);
+						modelmatrix.appendRotation(t * 1.0, Vector3D.Y_AXIS);
+						modelmatrix.appendTranslation(-10, 10, 0);
+						break;
+					case 1:
+						context3D.setTextureAt(0, null);
+						context3D.setProgram(shaderProgram2);
+						modelmatrix.appendRotation(t * -0.2, Vector3D.Y_AXIS);
+						modelmatrix.appendRotation(t * 0.4, Vector3D.X_AXIS);
+						modelmatrix.appendRotation(t * 0.7, Vector3D.Y_AXIS);
+						modelmatrix.appendTranslation(10, 10, 0);
+						break;
+					case 2:
+						context3D.setTextureAt(0, myTexture);
+						context3D.setProgram(shaderProgram3);
+						modelmatrix.appendRotation(t * 1.0, Vector3D.Y_AXIS);
+						modelmatrix.appendRotation(t * -0.2, Vector3D.X_AXIS);
+						modelmatrix.appendRotation(t * 0.3, Vector3D.Y_AXIS);
+						modelmatrix.appendTranslation(-10, -10, 0);
+						break;
+					case 3:
+						context3D.setProgramConstantsFromVector(
+								Context3DProgramType.FRAGMENT, 0, Vector.<Number>
+								([ 1, Math.abs(Math.cos(t / 50)), 0, 1 ]));
+						context3D.setTextureAt(0, myTexture);
+						context3D.setProgram(shaderProgram4);
+						modelmatrix.appendRotation(t * 0.3, Vector3D.Y_AXIS);
+						modelmatrix.appendRotation(t * 0.3, Vector3D.X_AXIS);
+						modelmatrix.appendRotation(t * -0.3, Vector3D.Y_AXIS);
+						modelmatrix.appendTranslation(10, -10, 0);
+						break;
+				}
+				// clear the matrix and append new angles
+				modelViewProjection.identity();
+				modelViewProjection.append(modelmatrix);
+				modelViewProjection.append(viewmatrix);
+				modelViewProjection.append(projectionmatrix);
+				// pass our matrix data to the shader program
+				context3D.setProgramConstantsFromMatrix(Context3DProgramType.VERTEX, 0, modelViewProjection, true);
+				// draw a spaceship mesh
+				// position
+				context3D.setVertexBufferAt(0, myMesh.positionsBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
+				// tex coord
+				context3D.setVertexBufferAt(1, myMesh.uvBuffer, 0, Context3DVertexBufferFormat.FLOAT_2);
+				// vertex rgba
+				context3D.setVertexBufferAt(2, myMesh.colorsBuffer, 0, Context3DVertexBufferFormat.FLOAT_4);
+				// render it
+				context3D.drawTriangles(myMesh.indexBuffer, 0, myMesh.indexBufferCount);
+			}
+
+			// present/flip back buffer
+			// now that all meshes have been drawn
+			context3D.present();
+			// update the FPS display
+			fpsTicks++;
+			var now:uint = getTimer();
+			var delta:uint = now - fpsLast;
+			// only update the display once a second
+			if (delta >= 1000) {
+				var fps:Number = fpsTicks / delta * 1000;
+				fpsTf.text = fps.toFixed(1) + " fps";
+				fpsTicks = 0;
+				fpsLast = now;
+			}
+			// update the rest of the GUI
+			updateScore();
+		}
+
+		private function initShaders():void {
 			// A simple vertex shader which does a 3D transformation
 			var vertexShaderAssembler:AGALMiniAssembler = new AGALMiniAssembler();
 			vertexShaderAssembler.assemble(
@@ -277,8 +388,7 @@ package {
 					// grab the texture color from texture 0
 					// and uv coordinates from varying register 1
 					// and store the interpolated value in ft0
-							"tex ft0, v1, fs0 <2d,repeat,miplinear>\n" +
-						// move this value to the output color
+							"tex ft0, v1, fs0 <2d,linear,repeat,miplinear>\n" +
 							"mov oc, ft0\n"
 			);
 
@@ -298,13 +408,10 @@ package {
 					// grab the texture color from texture 0
 					// and uv coordinates from varying register 0
 							"tex ft0, v1, fs0 <2d,repeat,miplinear>\n" +
-						// and uv coordinates from varying register 1
-							"tex ft1, v1, fs1 <2d,repeat,miplinear>\n" +
 						// multiply by the value stored in v2 (the vertex rgb)
 							"mul ft2, v2, ft0\n" +
-							"add ft3, ft0, ft1\n" +
 						// move this value to the output color
-							"mov oc, ft3\n"
+							"mov oc, ft2\n"
 			);
 
 			// textured using UV coordinates and
@@ -330,105 +437,6 @@ package {
 			shaderProgram3.upload(vertexShaderAssembler.agalcode, fragmentShaderAssembler3.agalcode);
 			shaderProgram4 = context3D.createProgram();
 			shaderProgram4.upload(vertexShaderAssembler.agalcode, fragmentShaderAssembler4.agalcode);
-		}
-
-		private function onMouseWheel(event:MouseEvent):void {
-			if (event.delta > 0) {
-				this.viewMatrix.appendTranslation(0, 0, -1);
-			} else {
-				this.viewMatrix.prependTranslation(0, 0, 1);
-			}
-		}
-
-		private function enterFrame(event:Event):void {
-			// clear scene before rendering is mandatory
-			context3D.clear(0, 0, 0);
-			context3D.setProgram(shaderProgram);
-
-			t += 2.0;
-
-			for (var looptemp:int = 0; looptemp < 4; looptemp++) {
-				// clear the transformation matrix to 0,0,0
-				modelMatrix.identity();
-				// each mesh has a different texture,
-				// shader, position and spin speed
-				switch (looptemp) {
-					case 0:
-						context3D.setTextureAt(0, myTexture);
-						context3D.setProgram(shaderProgram1);
-						modelMatrix.appendRotation(t * 0.7, Vector3D.Y_AXIS);
-						modelMatrix.appendRotation(t * 0.6, Vector3D.X_AXIS);
-						modelMatrix.appendRotation(t * 1.0, Vector3D.Y_AXIS);
-						modelMatrix.appendTranslation(-3, 3, 0);
-						break;
-					case 1:
-						context3D.setTextureAt(0, null);
-						context3D.setProgram(shaderProgram2);
-						modelMatrix.appendRotation(t * -0.2, Vector3D.Y_AXIS);
-						modelMatrix.appendRotation(t * 0.4, Vector3D.X_AXIS);
-						modelMatrix.appendRotation(t * 0.7, Vector3D.Y_AXIS);
-						modelMatrix.appendTranslation(3, 3, 0);
-						break;
-					case 2:
-						context3D.setProgramConstantsFromVector(Context3DProgramType.FRAGMENT, 0, Vector.<Number>([ 1, Math.abs(Math.cos(t / 50)), 0, 1 ]));
-						context3D.setTextureAt(0, myTexture);
-						context3D.setTextureAt(1, myTexture2);
-						context3D.setProgram(shaderProgram3);
-						modelMatrix.appendRotation(t * 1.0, Vector3D.Y_AXIS);
-						modelMatrix.appendRotation(t * -0.2, Vector3D.X_AXIS);
-						modelMatrix.appendRotation(t * 0.3, Vector3D.Y_AXIS);
-						modelMatrix.appendTranslation(-3, -3, 0);
-						break;
-					case 3:
-						context3D.setProgramConstantsFromVector(Context3DProgramType.FRAGMENT, 0, Vector.<Number>([ 1, Math.abs(Math.cos(t / 50)), 0, 1 ]));
-						context3D.setTextureAt(0, myTexture);
-						context3D.setProgram(shaderProgram4);
-						modelMatrix.appendRotation(t * 0.3, Vector3D.Y_AXIS);
-						modelMatrix.appendRotation(t * 0.3, Vector3D.X_AXIS);
-						modelMatrix.appendRotation(t * -0.3, Vector3D.Y_AXIS);
-						modelMatrix.appendTranslation(3, -3, 0);
-						break;
-				}
-
-				// clear the matrix and append new angles
-				modelViewProjection.identity();
-				modelViewProjection.append(modelMatrix);
-				modelViewProjection.append(viewMatrix);
-				modelViewProjection.append(projectionMatrix);
-				// pass our matrix data to the shader program
-				context3D.setProgramConstantsFromMatrix(Context3DProgramType.VERTEX, 0, modelViewProjection, true);
-
-				// associate the vertex data with current shader program
-				// position
-				context3D.setVertexBufferAt(0, vertexBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
-				// tex coord
-				context3D.setVertexBufferAt(1, vertexBuffer, 3, Context3DVertexBufferFormat.FLOAT_2);
-				// vertex rgba
-				context3D.setVertexBufferAt(2, vertexBuffer, 8, Context3DVertexBufferFormat.FLOAT_4);
-				// finally draw the triangles
-				context3D.drawTriangles(indexBuffer, 0, meshIndexData.length / 3);
-
-				context3D.setTextureAt(0, null);
-				context3D.setTextureAt(1, null);
-			}
-
-
-			// present/flip back buffer
-			// now that all meshes have been drawn
-			context3D.present();
-
-			// update the FPS display
-
-			fpsTicks++;
-			var now:uint = getTimer();
-			var delta:uint = now - fpsLast;
-			// only update the display once a second
-			if (delta >= 1000) {
-				var fps:Number = fpsTicks / delta * 1000;
-				fpsTf.text = fps.toFixed(1) + " fps";
-				fpsTicks = 0;
-				fpsLast = now;
-			}
 		}
 
 		//--------------------------------------------------------------------------
