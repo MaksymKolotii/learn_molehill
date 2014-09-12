@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<!-- Adobe AIR Application Descriptor File Template.
+     Specifies parameters for identifying, installing, and launching AIR applications.
+
+     xmlns - The Adobe AIR namespace: http://ns.adobe.com/air/application/14.0.
+     The last segment of the namespace specifies the version of the AIR runtime required for this application to run.
+
+     minimumPatchLevel - The minimum patch level of the AIR runtime required to run the application. Optional. -->
+
+<application xmlns="http://ns.adobe.com/air/application/14.0">
+
+	<id>com.win.stardustcasino</id>
+	<filename>Main</filename>
+	<name>Stardust</name>
+	<versionNumber>1.3.65</versionNumber>
+    <initialWindow>
+        <content>SWF file name is set automatically at compile time</content>
+		<autoOrients>true</autoOrients>
+		<aspectRatio>landscape</aspectRatio>
+		<fullScreen>true</fullScreen>
+		<visible>true</visible>
+		<renderMode>direct</renderMode>
+		<depthAndStencil>true</depthAndStencil>
+    </initialWindow>
+
+    <!-- We recommend omitting the supportedProfiles element, which in turn permits your application to be deployed to all devices supported by AIR.
+         If you wish to restrict deployment (i.e., to only mobile devices) then add this element and list only the profiles which your application does support. -->
+    <!--<supportedProfiles>desktop extendedDesktop mobileDevice extendedMobileDevice</supportedProfiles>-->
+
+    <!-- Languages supported by application. Only these languages can be specified -->
+    <!--<supportedLanguages>en de cs es fr it ja ko nl pl pt ru sv tr zh</supportedLanguages>-->
+
+    <!-- The subpath of the standard default installation location to use. Optional. -->
+    <!--<installFolder></installFolder>-->
+
+    <!-- The subpath of the Programs menu to use. (Ignored on operating systems without a Programs menu.) Optional. -->
+    <!--<programMenuFolder></programMenuFolder>-->
+
+    <!-- The icon the system uses for the application. For at least one resolution, specify the path to a PNG file included in the AIR package. Optional. -->
+    <icon>
+		<image57x57>icons/icon57x57.png</image57x57>
+		<image58x58>icons/icon58x58.png</image58x58>
+		<image114x114>icons/icon114x114.png</image114x114>
+		<image120x120>icons/icon120x120.png</image120x120>
+		<image512x512>icons/icon512x512.png</image512x512>
+		<image1024x1024>icons/icon1024x1024.png</image1024x1024>
+	</icon>
+
+    <iPhone>
+		<InfoAdditions> <![CDATA[
+			<key>FacebookAppID</key>
+			<string>147974958722793</string>
+			<key>UIDeviceFamily</key>
+			<array>
+				<!--iPhone and iPod touch devices -->
+				<string>1</string>
+				<!--iPad devices -->
+				<!--<string>2</string>-->
+				</array>
+			<key>CFBundleURLTypes</key>
+				<array>
+					<dict>
+                        <key>CFBundleURLName</key>
+                        <string>com.win.stardust</string>
+						<key>CFBundleURLSchemes</key>
+							<array>
+								<string>fb147974958722793</string>
+								<string>fb476667579068666</string>
+								<string>fb427916220623810</string>
+								<string>fb495637383842214</string>
+								<string>stardust</string>
+							</array>
+					</dict>
+				</array>
+			<!--<key>UIStatusBarStyle</key>-->
+			<!--<string>UIStatusBarStyleBlackOpaque</string>-->
+			<!--<key>UIRequiresPersistentWiFi</key>-->
+			<!--<string>YES</string>-->
+			]]></InfoAdditions>
+		<Entitlements> <![CDATA[
+         <key>aps-environment</key><!-- development/production -->
+         <string>production</string>
+         ]]> </Entitlements>
+		<requestedDisplayResolution>high</requestedDisplayResolution>
+	</iPhone>
+
+</application>

@@ -10,11 +10,10 @@ package {
 	import flash.display3D.Context3DCompareMode;
 	import flash.display3D.Context3DProgramType;
 	import flash.display3D.Context3DTextureFormat;
-	import flash.display3D.Context3DVertexBufferFormat;
+	import flash.display3D.Context3DTriangleFace;
 	import flash.display3D.Program3D;
 	import flash.display3D.textures.Texture;
 	import flash.events.Event;
-	import flash.events.KeyboardEvent;
 	import flash.geom.Matrix;
 	import flash.geom.Matrix3D;
 	import flash.geom.Vector3D;
@@ -23,115 +22,104 @@ package {
 	import flash.text.TextFormat;
 	import flash.utils.getTimer;
 
-	[SWF(frameRate=60, width=1200, height=800)]
+	[SWF(frameRate=60, width=960, height=640, backgroundColor="#000000")]
 	public class Main extends Sprite {
 
-		/* TEXTURES: Pure AS3 and Flex version:
-		 * if you are using Adobe Flash CS5
-		 * comment out the following: */
-		[Embed(source="../assets/dark_ship.png")]
-		private var myTextureBitmap:Class;
-		private var myTextureData:Bitmap = new myTextureBitmap();
-		[Embed(source="../assets/terrain_texture.jpg")]
-		private var terrainTextureBitmap:Class;
-		private var terrainTextureData:Bitmap = new terrainTextureBitmap();
+		// the player
+		[Embed(source="../assets/spaceship.obj", mimeType="application/octet-stream")]
+		private var myObjData5:Class;
 
-		// The Stage3d Texture that uses the above myTextureData
-		private var myTexture:Texture;
-		private var terrainTexture:Texture;
+		// the engine glow
+		[Embed(source="../assets/puff.obj", mimeType="application/octet-stream")]
+		private var puffObjData:Class;
 
 		// The terrain mesh data
 		[Embed(source="../assets/terrain.obj", mimeType="application/octet-stream")]
 		private var terrainObjData:Class;
-		private var terrainMesh:Stage3dObjParser;
 
-		// tiny particles
-		[Embed(source="../assets/randomParticleCluste", mimeType="application/octet-stream")]
-		private var randomParticleClusterData:Class;
-		private var randomParticlesMesh:Stage3dObjParser;
+		// an asteroid field
+		[Embed(source="../assets/asteroids.obj", mimeType="application/octet-stream")]
+		private var asteroidsObjData:Class;
 
-		[Embed(source="../assets/roundPuffCluster", mimeType="application/octet-stream")]
-		private var roundPuffData:Class;
-		private var roundPuffMesh:Stage3dObjParser;
-
-		[Embed(source="../assets/cube.obj", mimeType="application/octet-stream")]
-		private var cubeObjData:Class;
-		private var cubeMesh:Stage3dObjParser;
-
+		// the sky
 		[Embed(source="../assets/sphere.obj", mimeType="application/octet-stream")]
-		private var sphereObjData:Class;
-		private var sphereMesh:Stage3dObjParser;
+		private var skyObjData:Class;
 
-		[Embed(source="../assets/ship.obj", mimeType="application/octet-stream")]
-		private var shipObjData:Class;
-		private var shipMesh:Stage3dObjParser;
+		/* TEXTURES: Pure AS3 and Flex version:
+		 * if you are using Adobe Flash CS5
+		 * comment out the following: */
+		[Embed(source="../assets/spaceship_texture.jpg")]
+		private var playerTextureBitmap:Class;
+		private var playerTextureData:Bitmap = new playerTextureBitmap();
 
-		[Embed(source="../assets/leaf.png")]
-		private var leafData:Class;
-		private var leafBmp:Bitmap = new leafData();
+		[Embed(source="../assets/terrain_texture.jpg")]
+		private var terrainTextureBitmap:Class;
+		private var terrainTextureData:Bitmap = new terrainTextureBitmap();
 
-		[Embed(source="../assets/fire.jpg")]
-		private var fireData:Class;
-		private var fireBmp:Bitmap = new fireData();
+		[Embed(source="../assets/craters.jpg")]
+		private var cratersTextureBitmap:Class;
+		private var cratersTextureData:Bitmap = new cratersTextureBitmap();
 
-		[Embed(source="../assets/lensFlare.jpg")]
-		private var lensFlareData:Class;
-		private var lensFlareBmp:Bitmap = new lensFlareData();
+		[Embed(source="../assets/sky.jpg")]
+		private var skyTextureBitmap:Class;
+		private var skyTextureData:Bitmap = new skyTextureBitmap();
 
-		[Embed(source="../assets/glow.jpg")]
-		private var glowData:Class;
-		private var glowBmp:Bitmap = new glowData();
+		[Embed(source="../assets/engine.jpg")]
+		private var puffTextureBitmap:Class;
+		private var puffTextureData:Bitmap = new puffTextureBitmap();
 
-		[Embed(source="../assets/smoke.jpg")]
-		private var smokeData:Class;
-		private var smokeBmp:Bitmap = new smokeData();
+		// the HUD overlay image:
+		[Embed(source="../assets/hud_overlay.png")]
+		private var hudOverlayData:Class;
+		private var hudOverlay:Bitmap = new hudOverlayData();
 
+		// handles all timers for us
+		private var gametimer:GameTimer;
+		// handles keyboard and mouse inputs
+		private var gameinput:GameInput;
+		// all known entities in the world
+		private var chaseCamera:Stage3dEntity;
+		private var player:Stage3dEntity;
+		private var props:Vector.<Stage3dEntity>;
+		private var enemies:Vector.<Stage3dEntity>;
+		private var bullets:Vector.<Stage3dEntity>;
+
+		private var particles:Vector.<Stage3dEntity>;
+		// reusable entity pointer (for speed and to avoid GC)
+		private var entity:Stage3dEntity;
+		// we want to remember these for use in gameStep()
+		private var asteroids1:Stage3dEntity;
+		private var asteroids2:Stage3dEntity;
+		private var asteroids3:Stage3dEntity;
+		private var asteroids4:Stage3dEntity;
+		private var engineGlow:Stage3dEntity;
+		private var sky:Stage3dEntity;
+
+		// The Stage3d Textures that use the above
+		private var playerTexture:Texture;
+		private var terrainTexture:Texture;
+		private var cratersTexture:Texture;
+		private var skyTexture:Texture;
+		private var puffTexture:Texture;
+
+		// used by gameStep()
+		private const moveSpeed:Number = 1.0; // units per ms
+		private const asteroidRotationSpeed:Number = 0.001; // deg per ms
 		// used by the GUI
 		private var fpsLast:uint = getTimer();
 		private var fpsTicks:uint = 0;
 		private var fpsTf:TextField;
 		private var scoreTf:TextField;
 		private var score:uint = 0;
-		// constants used during inits
-		private const swfWidth:int = 1200;
-		private const swfHeight:int = 800;
-		// for this demo, ensure ALL textures are 512x512
-		private const textureSize:int = 512;
 		// the 3d graphics window on the stage
 		private var context3D:Context3D;
-		// the compiled shaders used to render our mesh
+		// the compiled shader used to render our meshes
 		private var shaderProgram1:Program3D;
 		// matrices that affect the mesh location and camera angles
-		private var projectionmatrix:PerspectiveMatrix3D = new PerspectiveMatrix3D();
-		private var modelmatrix:Matrix3D = new Matrix3D();
+		private var projectionmatrix:PerspectiveMatrix3D =
+				new PerspectiveMatrix3D();
 		private var viewmatrix:Matrix3D = new Matrix3D();
-		private var terrainviewmatrix:Matrix3D = new Matrix3D();
-		private var modelViewProjection:Matrix3D = new Matrix3D();
-		// a simple frame counter used for animation
-		private var t:Number = 0;
 
-		// Points to whatever the current mesh is
-		private var myMesh:Stage3dObjParser;
-
-		// The Stage3d Textures that use the above
-		private var leafTexture:Texture;
-		private var fireTexture:Texture;
-		private var lensFlareTexture:Texture;
-		private var glowTexture:Texture;
-		private var smokeTexture:Texture;
-
-		// available blend/texture/mesh
-		private var blendNumMax:int = 11;
-		private var blendNum:int = -1;
-		private var texNum:int = -1;
-		private var texNumMax:int = 4;
-		private var meshNum:int = -1;
-		private var meshNumMax:int = 4;
-
-		// used by the GUI
-		private var label1:TextField;
-		private var label2:TextField;
-		private var label3:TextField;
 
 		public function Main() {
 			if (stage != null) {
@@ -152,183 +140,23 @@ package {
 				removeEventListener(Event.ADDED_TO_STAGE, init);
 			}
 
-			// class constructor - sets up the stage
+			// start the game timer and inputs
+			gametimer = new GameTimer(heartbeat);
+			gameinput = new GameInput(stage);
+			// create some empty arrays
+			props = new Vector.<Stage3dEntity>();
+			enemies = new Vector.<Stage3dEntity>();
+			bullets = new Vector.<Stage3dEntity>();
+			particles = new Vector.<Stage3dEntity>();
+			// set up the stage
 			stage.scaleMode = StageScaleMode.NO_SCALE;
 			stage.align = StageAlign.TOP_LEFT;
 			// add some text labels
 			initGUI();
 			// and request a context3D from Stage3d
-			stage.stage3Ds[0].addEventListener(Event.CONTEXT3D_CREATE, onContext3DCreate);
+			stage.stage3Ds[0].addEventListener(
+					Event.CONTEXT3D_CREATE, onContext3DCreate);
 			stage.stage3Ds[0].requestContext3D();
-
-			stage.addEventListener(KeyboardEvent.KEY_DOWN, keyPressed);
-		}
-
-		private function keyPressed(event:KeyboardEvent):void {
-			switch (event.charCode) {
-				case 98: // the b key
-					nextBlendmode();
-					break;
-				case 109: // the m key
-					nextMesh();
-					break;
-				case 116: // the t key
-					nextTexture();
-					break;
-			}
-		}
-
-		private function setBlendmode():void {
-			// All possible blendmodes:
-			// Context3DBlendFactor.DESTINATION_ALPHA
-			// Context3DBlendFactor.DESTINATION_COLOR
-			// Context3DBlendFactor.ONE
-			// Context3DBlendFactor.ONE_MINUS_DESTINATION_ALPHA
-			// Context3DBlendFactor.ONE_MINUS_DESTINATION_COLOR
-			// Context3DBlendFactor.ONE_MINUS_SOURCE_ALPHA
-			// Context3DBlendFactor.ONE_MINUS_SOURCE_COLOR
-			// Context3DBlendFactor.SOURCE_ALPHA
-			// Context3DBlendFactor.SOURCE_COLOR
-			// Context3DBlendFactor.ZERO
-			switch (blendNum) {
-				case 0:
-					// the default: nice for opaque textures
-					context3D.setBlendFactors(Context3DBlendFactor.ONE, Context3DBlendFactor.ZERO);
-					break;
-				case 1:
-					// perfect for transparent textures
-					// like foliage/fences/fonts
-					context3D.setBlendFactors(Context3DBlendFactor.SOURCE_ALPHA, Context3DBlendFactor.ONE_MINUS_SOURCE_ALPHA);
-					break;
-				case 2:
-					// perfect to make it lighten the scene only
-					// (black is not drawn)
-					context3D.setBlendFactors(Context3DBlendFactor.SOURCE_COLOR, Context3DBlendFactor.ONE);
-					break;
-				case 3:
-					// just lightens the scene - great for particles
-					context3D.setBlendFactors(Context3DBlendFactor.ONE, Context3DBlendFactor.ONE);
-					break;
-				case 4:
-					// perfect for when you want to darken only (smoke, etc)
-					context3D.setBlendFactors(Context3DBlendFactor.DESTINATION_COLOR, Context3DBlendFactor.ZERO);
-					break;
-
-				case 5:
-					context3D.setBlendFactors(Context3DBlendFactor.ZERO, Context3DBlendFactor.SOURCE_COLOR);
-					break;
-
-				case 6:
-					context3D.setBlendFactors(Context3DBlendFactor.DESTINATION_COLOR, Context3DBlendFactor.SOURCE_COLOR);
-					break;
-
-				case 7:
-					context3D.setBlendFactors(Context3DBlendFactor.ONE, Context3DBlendFactor.ONE_MINUS_SOURCE_COLOR);
-					break;
-
-				case 8:
-					context3D.setBlendFactors(Context3DBlendFactor.ZERO, Context3DBlendFactor.ONE_MINUS_DESTINATION_COLOR);
-					break;
-
-				case 9:
-					context3D.setBlendFactors(Context3DBlendFactor.SOURCE_ALPHA, Context3DBlendFactor.DESTINATION_COLOR);
-					break;
-
-				case 10:
-					context3D.setBlendFactors(Context3DBlendFactor.DESTINATION_COLOR, Context3DBlendFactor.ONE_MINUS_SOURCE_COLOR);
-					break;
-
-				case 11:
-					context3D.setBlendFactors(Context3DBlendFactor.ZERO, Context3DBlendFactor.ONE_MINUS_SOURCE_ALPHA);
-					break;
-			}
-		}
-
-		private function nextBlendmode():void {
-			blendNum++;
-			if (blendNum > blendNumMax) blendNum = 0;
-			switch (blendNum) {
-				case 0:
-					label1.text = '[B] ONE, ZERO';
-					break;
-				case 1:
-					label1.text = '[B] SOURCE_ALPHA, ONE_MINUS_SOURCE_ALPHA => ALPHA: preserves transprency';
-					break;
-				case 2:
-					label1.text = '[B] SOURCE_COLOR, ONE';
-					break;
-				case 3:
-					label1.text = '[B] ONE, ONE => ADD';
-					break;
-				case 4:
-					label1.text = '[B] DESTINATION_COLOR, ZERO';
-					break;
-				case 5:
-					label1.text = "[B] ZERO, SOURCE_COLOR (Multiplicative Blending)";
-					break;
-				case 6:
-					label1.text = "[B] ZERO, SOURCE_COLOR (2X Multiplicative Blending)";
-					break;
-				case 7:
-					label1.text = "[B] ONE, ONE_MINUS_SOURCE_COLOR (NEGATIVE) => screen";
-					break;
-				case 8:
-					label1.text = "[B] ZERO, ONE_MINUS_DESTINATION_COLOR => SHADOW: only keeps the opaque shape, should be combined with a Colortransform"
-					break;
-				case 9:
-					label1.text = "[B] SOURCE_ALPHA, DESTINATION_COLOR => HARDLIGHT"
-					break;
-				case 10:
-					label1.text = "[B] DESTINATION_COLOR, ONE_MINUS_SOURCE_COLOR => Starling multiply"
-					break;
-				case 11:
-					label1.text = "[B] ZERO, ONE_MINUS_SOURCE_ALPHA => Starling erase"
-					break;
-			}
-		}
-
-		private function nextTexture():void {
-			texNum++;
-			if (texNum > texNumMax) texNum = 0;
-			switch (texNum) {
-				case 0:
-					label2.text = '[T] Transparent Leaf Texture';
-					break;
-				case 1:
-					label2.text = '[T] Fire Texture';
-					break;
-				case 2:
-					label2.text = '[T] Lens Flare Texture';
-					break;
-				case 3:
-					label2.text = '[T] Glow Texture';
-					break;
-				case 4:
-					label2.text = '[T] Smoke Texture';
-					break;
-			}
-		}
-
-		private function nextMesh():void {
-			meshNum++;
-			if (meshNum > meshNumMax) meshNum = 0;
-			switch (meshNum) {
-				case 0:
-					label3.text = '[M] Random Particle Cluster';
-					break;
-				case 1:
-					label3.text = '[M] Round Puff Cluster';
-					break;
-				case 2:
-					label3.text = '[M] Cube Model';
-					break;
-				case 3:
-					label3.text = '[M] Sphere Model';
-					break;
-				case 4:
-					label3.text = '[M] Spaceship Model';
-					break;
-			}
 		}
 
 		private function updateScore():void {
@@ -344,54 +172,32 @@ package {
 		}
 
 		private function initGUI():void {
+			// heads-up-display overlay
+			addChild(hudOverlay);
+
 			// a text format descriptor used by all gui labels
 			var myFormat:TextFormat = new TextFormat();
-			myFormat.color = 0xFFFFFF;
-			myFormat.size = 13;
+			myFormat.color = 0xFFFFAA;
+			myFormat.size = 16;
+
 			// create an FPSCounter that displays the framerate on screen
 			fpsTf = new TextField();
-			fpsTf.x = stage.stageWidth - fpsTf.width;
+			fpsTf.x = 4;
 			fpsTf.y = 0;
 			fpsTf.selectable = false;
 			fpsTf.autoSize = TextFieldAutoSize.LEFT;
 			fpsTf.defaultTextFormat = myFormat;
 			fpsTf.text = "Initializing Stage3d...";
 			addChild(fpsTf);
+
 			// create a score display
 			scoreTf = new TextField();
-			scoreTf.x = 560;
+			scoreTf.x = stage.stageWidth - scoreTf.width;
 			scoreTf.y = 0;
 			scoreTf.selectable = false;
 			scoreTf.autoSize = TextFieldAutoSize.LEFT;
 			scoreTf.defaultTextFormat = myFormat;
 			addChild(scoreTf);
-			// add some labels to describe each shader
-			label1 = new TextField();
-			label1.x = 0;
-			label1.y = 30;
-			label1.selectable = false;
-			label1.autoSize = TextFieldAutoSize.LEFT;
-			label1.defaultTextFormat = myFormat;
-			addChild(label1);
-			label2 = new TextField();
-			label2.x = 0;
-			label2.y = 50;
-			label2.selectable = false;
-			label2.autoSize = TextFieldAutoSize.LEFT;
-			label2.defaultTextFormat = myFormat;
-			addChild(label2);
-			label3 = new TextField();
-			label3.x = 0;
-			label3.y = 70;
-			label3.selectable = false;
-			label3.autoSize = TextFieldAutoSize.LEFT;
-			label3.defaultTextFormat = myFormat;
-			addChild(label3);
-
-			// force these labels to be set
-			nextMesh();
-			nextTexture();
-			nextBlendmode();
 		}
 
 		public function uploadTextureWithMipmaps(dest:Texture, src:BitmapData):void {
@@ -437,167 +243,107 @@ package {
 				trace('ERROR: no context3D - video driver problem?');
 				return;
 			}
+
 			// Disabling error checking will drastically improve performance.
 			// If set to true, Flash sends helpful error messages regarding
 			// AGAL compilation errors, uninitialized program constants, etc.
 			context3D.enableErrorChecking = true;
-			// Initialize our mesh data
-			initData();
 			// The 3d back buffer size is in pixels (2=antialiased)
-			context3D.configureBackBuffer(swfWidth, swfHeight, 2, true);
+			context3D.configureBackBuffer(stage.stageWidth, stage.stageHeight, 2, true);
 			// assemble all the shaders we need
 			initShaders();
-
-			this.leafTexture = context3D.createTexture(leafBmp.width, leafBmp.height, Context3DTextureFormat.BGRA, false);
-			uploadTextureWithMipmaps(leafTexture, leafBmp.bitmapData);
-
-			this.fireTexture = context3D.createTexture(fireBmp.width, fireBmp.height, Context3DTextureFormat.BGRA, false);
-			uploadTextureWithMipmaps(fireTexture, fireBmp.bitmapData);
-
-			this.lensFlareTexture = context3D.createTexture(lensFlareBmp.width, lensFlareBmp.height, Context3DTextureFormat.BGRA, false);
-			uploadTextureWithMipmaps(lensFlareTexture, lensFlareBmp.bitmapData);
-
-			this.glowTexture = context3D.createTexture(glowBmp.width, glowBmp.height, Context3DTextureFormat.BGRA, false);
-			uploadTextureWithMipmaps(glowTexture, glowBmp.bitmapData);
-
-			this.smokeTexture = context3D.createTexture(smokeBmp.width, smokeBmp.height, Context3DTextureFormat.BGRA, false);
-			uploadTextureWithMipmaps(smokeTexture, smokeBmp.bitmapData);
-
+			playerTexture = context3D.createTexture(playerTextureData.width, playerTextureData.height, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(playerTexture, playerTextureData.bitmapData);
 			terrainTexture = context3D.createTexture(terrainTextureData.width, terrainTextureData.height, Context3DTextureFormat.BGRA, false);
 			uploadTextureWithMipmaps(terrainTexture, terrainTextureData.bitmapData);
-
+			cratersTexture = context3D.createTexture(cratersTextureData.width, cratersTextureData.height, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(cratersTexture, cratersTextureData.bitmapData);
+			puffTexture = context3D.createTexture(puffTextureData.width, puffTextureData.height, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(puffTexture, puffTextureData.bitmapData);
+			skyTexture = context3D.createTexture(skyTextureData.width, skyTextureData.height, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(skyTexture, skyTextureData.bitmapData);
+			// Initialize our mesh data - requires shaders and textures first
+			initData();
 			// create projection matrix for our 3D scene
 			projectionmatrix.identity();
-			// 45 degrees FOV, 640/480 aspect ratio, 0.1=near, 100=far
-			projectionmatrix.perspectiveFieldOfViewRH(45.0, swfWidth / swfHeight, 0.01, 5000.0);
-			// create a matrix that defines the camera location
-			viewmatrix.identity();
-			// move the camera back a little so we can see the mesh
-			viewmatrix.appendTranslation(0, 0, -1.5);
-			// tilt the terrain a little so it is coming towards us
-			terrainviewmatrix.identity();
-			terrainviewmatrix.appendRotation(-60, Vector3D.X_AXIS);
+			// 45 degrees FOV, 640/480 aspect ratio, 0.1=near, 150000=far
+			projectionmatrix.perspectiveFieldOfViewRH(45, stage.width / stage.height, 0.01, 150000.0);
 			// start the render loop!
 			addEventListener(Event.ENTER_FRAME, enterFrame);
 		}
 
 		private function initData():void {
-			// parse the OBJ file and create buffers
-			trace("Parsing the meshes...");
-			this.randomParticlesMesh = new Stage3dObjParser(this.randomParticleClusterData, context3D, 1, true, true);
-			this.roundPuffMesh = new Stage3dObjParser(this.roundPuffData, context3D, 1, true, true);
-			this.cubeMesh = new Stage3dObjParser(this.cubeObjData, context3D, 1, true, true);
-			this.sphereMesh = new Stage3dObjParser(this.sphereObjData, context3D, 1, true, true);
-			this.shipMesh = new Stage3dObjParser(this.shipObjData, context3D, 1, true, true);
+			// create the camera entity
+			trace("Creating the camera entity...");
+			chaseCamera = new Stage3dEntity();
 
-			// parse the terrain mesh as well
+			// create the player model
+			trace("Creating the player entity...");
+
+			player = new Stage3dEntity(myObjData5, context3D, shaderProgram1, playerTexture);
+			// rotate to face forward
+			player.rotationDegreesX = -90;
+			player.z = 2100;
 			trace("Parsing the terrain...");
-			terrainMesh = new Stage3dObjParser(this.terrainObjData, context3D, 1, true, true);
-		}
+			// add some terrain to the props list
+			var terrain:Stage3dEntity = new Stage3dEntity(terrainObjData, context3D, shaderProgram1, terrainTexture);
+			terrain.rotationDegreesZ = 90;
+			terrain.y = -50;
+			props.push(terrain);
+			trace("Cloning the terrain...");
+			// use the same mesh in another location
+			var terrain2:Stage3dEntity = terrain.clone();
+			terrain2.z = -4000;
+			props.push(terrain2);
 
-		private function renderMesh():void {
-			if (blendNum > 1) {
-				// ignore depth zbuffer
-				// always draw polies even those that are behind others
-				context3D.setDepthTest(false, Context3DCompareMode.LESS);
-			} else {
-				// use the depth zbuffer
-				context3D.setDepthTest(true, Context3DCompareMode.LESS);
-			}
-			// clear the transformation matrix to 0,0,0
-			modelmatrix.identity();
-			context3D.setProgram(shaderProgram1);
-			setTexture();
-			setBlendmode();
-			modelmatrix.appendRotation(t * 0.7, Vector3D.Y_AXIS);
-			modelmatrix.appendRotation(t * 0.6, Vector3D.X_AXIS);
-			modelmatrix.appendRotation(t * 1.0, Vector3D.Y_AXIS);
-			// clear the matrix and append new angles
-			modelViewProjection.identity();
-			modelViewProjection.append(modelmatrix);
-			modelViewProjection.append(viewmatrix);
-			modelViewProjection.append(projectionmatrix);
-			// pass our matrix data to the shader program
-			context3D.setProgramConstantsFromMatrix(Context3DProgramType.VERTEX, 0, modelViewProjection, true);
+			trace("Parsing the asteroid field...");
+			// add an asteroid field to the props list
+			asteroids1 = new Stage3dEntity(asteroidsObjData, context3D, shaderProgram1, cratersTexture);
+			asteroids1.rotationDegreesZ = 90;
+			asteroids1.scaleXYZ = 200;
+			asteroids1.y = 500;
+			asteroids1.z = -1000;
+			props.push(asteroids1);
 
-			switch (meshNum) {
-				case 0:
-					myMesh = this.randomParticlesMesh;
-					break;
-				case 1:
-					myMesh = this.roundPuffMesh;
-					break;
-				case 2:
-					myMesh = this.cubeMesh;
-					break;
-				case 3:
-					myMesh = this.sphereMesh;
-					break;
-				case 4:
-					myMesh = this.shipMesh;
-					break;
-			}
+			trace("Cloning the asteroid field...");
+			// use the same mesh in multiple locations
+			asteroids2 = asteroids1.clone();
+			asteroids2.z = -5000;
+			props.push(asteroids2);
+			asteroids3 = asteroids1.clone();
+			asteroids3.z = -9000;
+			props.push(asteroids3);
+			asteroids4 = asteroids1.clone();
+			asteroids4.z = -9000;
+			asteroids4.y = -500;
+			props.push(asteroids4);
 
-			// draw a mesh
-			// position
-			context3D.setVertexBufferAt(0, myMesh.positionsBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
-			// tex coord
-			context3D.setVertexBufferAt(1, myMesh.uvBuffer, 0, Context3DVertexBufferFormat.FLOAT_2);
-			// vertex rgba
-			context3D.setVertexBufferAt(2, myMesh.colorsBuffer, 0, Context3DVertexBufferFormat.FLOAT_4);
-			// render it
-			context3D.drawTriangles(myMesh.indexBuffer, 0, myMesh.indexBufferCount);
-		}
+			trace("Parsing the engine glow...");
+			engineGlow = new Stage3dEntity(puffObjData, context3D, shaderProgram1, puffTexture);
+			// follow the player's ship
+			engineGlow.follow(player);
+			// draw as a transparent particle
+			engineGlow.blendSrc = Context3DBlendFactor.ONE;
+			engineGlow.blendDst = Context3DBlendFactor.ONE;
+			engineGlow.depthTest = false;
+			engineGlow.cullingMode = Context3DTriangleFace.NONE;
+			engineGlow.y = -1.0;
+			engineGlow.scaleXYZ = 0.5;
+			particles.push(engineGlow);
 
-		private function setTexture():void {
-			switch (texNum) {
-				case 0:
-					context3D.setTextureAt(0, this.leafTexture);
-					break;
-				case 1:
-					context3D.setTextureAt(0, this.fireTexture);
-					break;
-				case 2:
-					context3D.setTextureAt(0, this.lensFlareTexture);
-					break;
-				case 3:
-					context3D.setTextureAt(0, this.glowTexture);
-					break;
-				case 4:
-					context3D.setTextureAt(0, this.smokeTexture);
-					break;
-			}
-		}
-
-		private function renderTerrain():void {
-			// texture blending: no blending at all - opaque
-			context3D.setBlendFactors(Context3DBlendFactor.ONE, Context3DBlendFactor.ZERO);
-			// draw to depth zbuffer and do not draw polies that are obscured
-			context3D.setDepthTest(true, Context3DCompareMode.LESS);
-
-			context3D.setTextureAt(0, terrainTexture);
-			// simple textured shader
-			context3D.setProgram(shaderProgram1);
-			// position
-			context3D.setVertexBufferAt(0, terrainMesh.positionsBuffer, 0, Context3DVertexBufferFormat.FLOAT_3);
-			// tex coord
-			context3D.setVertexBufferAt(1, terrainMesh.uvBuffer, 0, Context3DVertexBufferFormat.FLOAT_2);
-			// vertex rgba
-			context3D.setVertexBufferAt(2, terrainMesh.colorsBuffer, 0, Context3DVertexBufferFormat.FLOAT_4);
-			// set up camera angle
-			modelmatrix.identity();
-			// make the terrain face the right way
-			modelmatrix.appendRotation(-90, Vector3D.Y_AXIS);
-			// slowly move the terrain around
-			modelmatrix.appendTranslation(Math.cos(t / 300) * 1000, Math.cos(t / 200) * 1000 + 500, -130);
-			// clear the matrix and append new angles
-			modelViewProjection.identity();
-			modelViewProjection.append(modelmatrix);
-			modelViewProjection.append(terrainviewmatrix);
-			modelViewProjection.append(projectionmatrix);
-			// pass our matrix data to the shader program
-			context3D.setProgramConstantsFromMatrix(Context3DProgramType.VERTEX, 0, modelViewProjection, true);
-			context3D.drawTriangles(terrainMesh.indexBuffer, 0, terrainMesh.indexBufferCount);
+			trace("Parsing the sky...");
+			sky = new Stage3dEntity(skyObjData, context3D, shaderProgram1, skyTexture);
+			// follow the player's ship
+			sky.follow(player);
+			sky.depthTest = false;
+			sky.depthTestMode = Context3DCompareMode.LESS;
+			sky.cullingMode = Context3DTriangleFace.NONE;
+			sky.z = 2000.0;
+			sky.scaleX = 40000;
+			sky.scaleY = 40000;
+			sky.scaleZ = 10000;
+			sky.rotationDegreesX = 30;
+			props.push(sky);
 		}
 
 		//--------------------------------------------------------------------------
@@ -606,12 +352,12 @@ package {
 		private function enterFrame(e:Event):void {
 			// clear scene before rendering is mandatory
 			context3D.clear(0, 0, 0);
-			// move or rotate more each frame
-			t += 2.0;
-			// scroll and render the terrain once
-			renderTerrain();
-			// render whatever mesh is selected
-			renderMesh();
+			// count frames, measure elapsed time
+			gametimer.tick();
+			// update all entities positions, etc
+			gameStep(gametimer.frameMs);
+			// render everything
+			renderScene();
 			// present/flip back buffer
 			// now that all meshes have been drawn
 			context3D.present();
@@ -630,11 +376,81 @@ package {
 			updateScore();
 		}
 
+		private function renderScene():void {
+			viewmatrix.identity();
+			// look at the player
+			viewmatrix.append(chaseCamera.transform);
+			viewmatrix.invert();
+			// tilt down a little
+			viewmatrix.appendRotation(15, Vector3D.X_AXIS);
+			// if mouselook is on:
+			viewmatrix.appendRotation(gameinput.cameraAngleX, Vector3D.X_AXIS);
+			viewmatrix.appendRotation(gameinput.cameraAngleY, Vector3D.Y_AXIS);
+			viewmatrix.appendRotation(gameinput.cameraAngleZ, Vector3D.Z_AXIS);
+			// render the player mesh from the current camera angle
+			player.render(viewmatrix, projectionmatrix);
+			// loop through all known entities and render them
+			for each (entity in props) {
+				entity.render(viewmatrix, projectionmatrix);
+			}
+			for each (entity in enemies) {
+				entity.render(viewmatrix, projectionmatrix);
+			}
+			for each (entity in bullets) {
+				entity.render(viewmatrix, projectionmatrix);
+			}
+			for each (entity in particles) {
+				entity.render(viewmatrix, projectionmatrix);
+			}
+		}
+
+		private function gameStep(frameMs:uint):void {
+			// handle player input
+			var moveAmount:Number = moveSpeed * frameMs;
+			if (gameinput.pressing.up) {
+				player.z -= moveAmount;
+			}
+
+			if (gameinput.pressing.down) {
+				player.z += moveAmount;
+			}
+
+			if (gameinput.pressing.left) {
+				player.x -= moveAmount;
+			}
+
+			if (gameinput.pressing.right) {
+				player.x += moveAmount;
+			}
+			//if (pressing.fire) // etc...
+			// follow the player
+			chaseCamera.x = player.x;
+			chaseCamera.y = player.y + 1.5; // above
+			chaseCamera.z = player.z + 3; // behind
+
+			// animate the asteroids
+			asteroids1.rotationDegreesX += asteroidRotationSpeed * frameMs;
+			asteroids2.rotationDegreesX -= asteroidRotationSpeed * frameMs;
+			asteroids3.rotationDegreesX += asteroidRotationSpeed * frameMs;
+			asteroids4.rotationDegreesX -= asteroidRotationSpeed * frameMs;
+			// animate the engine glow - spin fast and pulsate slowly
+			engineGlow.rotationDegreesZ += 10 * frameMs;
+			engineGlow.scaleXYZ = Math.cos(gametimer.gameElapsedTime / 66) / 20 + 0.5;
+		}
+
+		private function heartbeat():void {
+			trace('heartbeat at ' + gametimer.gameElapsedTime + 'ms');
+			trace('player ' + player.posString());
+			trace('camera ' + chaseCamera.posString());
+		}
+
 		private function initShaders():void {
 			// A simple vertex shader which does a 3D transformation
 			// for simplicity, it is used by all four shaders
-			var vertexShaderAssembler:AGALMiniAssembler = new AGALMiniAssembler();
-			vertexShaderAssembler.assemble(
+			var vertexShaderAssembler:AGALMiniAssembler =
+					new AGALMiniAssembler();
+			vertexShaderAssembler.assemble
+			(
 					Context3DProgramType.VERTEX,
 					// 4x4 matrix multiply to get camera angle
 							"m44 op, va0, vc0\n" +
@@ -645,6 +461,7 @@ package {
 						// tell fragment shader about RGBA
 							"mov v2, va2"
 			);
+
 			// textured using UV coordinates
 			var fragmentShaderAssembler1:AGALMiniAssembler
 					= new AGALMiniAssembler();

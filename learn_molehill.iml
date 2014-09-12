@@ -16,6 +16,27 @@
         <packaging-android />
         <packaging-ios />
       </configuration>
+      <configuration name="ios" target-platform="Mobile" pure-as="true" main-class="Main" output-file="ios.swf" output-folder="$MODULE_DIR$/bin">
+        <dependencies>
+          <sdk name="AIR_SDK" />
+        </dependencies>
+        <compiler-options>
+          <map>
+            <entry key="compiler.debug.swf" value="true" />
+            <entry key="compiler.keep-generated-actionscript" value="false" />
+          </map>
+        </compiler-options>
+        <packaging-air-desktop />
+        <packaging-android package-file-name="ios" />
+        <packaging-ios enabled="true" use-generated-descriptor="false" custom-descriptor-path="$MODULE_DIR$/build/Main-app.xml" package-file-name="ios">
+          <files-to-package>
+            <FilePathAndPathInPackage file-path="D:/projects/casino/static/mobile/build/icons" path-in-package="icons" />
+            <FilePathAndPathInPackage file-path="D:/projects/casino/static/mobile/build/defaults/Default-568h@2x.png" path-in-package="Default-568h@2x.png" />
+            <FilePathAndPathInPackage file-path="D:/projects/casino/static/mobile/build/defaults/Default@2x.png" path-in-package="Default@2x.png" />
+          </files-to-package>
+          <AirSigningOptions keystore-path="D:/projects/casino/static/mobile/build/keys/WIN_Prod.p12" provisioning-profile-path="D:/projects/casino/static/mobile/build/keys/StardustCasino_ADHOC.mobileprovision" />
+        </packaging-ios>
+      </configuration>
     </configurations>
     <compiler-options />
   </component>
