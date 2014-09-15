@@ -1,4 +1,6 @@
 package {
+	import com.greensock.TweenLite;
+
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
 	import flash.display.Sprite;
@@ -92,6 +94,7 @@ package {
 		// all known entities in the world
 		private var chaseCamera:Stage3dEntity;
 		private var player:Stage3dEntity;
+		private var ship:Stage3dEntity;
 		private var props:Vector.<Stage3dEntity>;
 		private var enemies:Vector.<Stage3dEntity>;
 		private var bullets:Vector.<Stage3dEntity>;
@@ -225,7 +228,6 @@ package {
 			var level:int = 0;
 			var tmp:BitmapData;
 			var transform:Matrix = new Matrix();
-			var tmp2:BitmapData;
 			tmp = new BitmapData(src.width, src.height, true, 0x00000000);
 			while (ws >= 1 && hs >= 1) {
 				tmp.draw(src, transform, null, null, null, true);
@@ -303,10 +305,14 @@ package {
 			// create the player model
 			trace("Creating the player entity...");
 
-			player = new Stage3dEntity(myObjData5, context3D, shaderProgram1, playerTexture);
+			player = new Stage3dEntity();
 			// rotate to face forward
 			player.rotationDegreesX = -90;
 			player.z = 2100;
+
+			ship = new Stage3dEntity(myObjData5, context3D, shaderProgram1, playerTexture);
+			ship.follow(player);
+
 			trace("Parsing the terrain...");
 			// add some terrain to the props list
 			var terrain:Stage3dEntity = new Stage3dEntity(terrainObjData, context3D, shaderProgram1, terrainTexture);
@@ -419,8 +425,8 @@ package {
 			viewmatrix.appendRotation(gameinput.cameraAngleY, Vector3D.Y_AXIS);
 			viewmatrix.appendRotation(gameinput.cameraAngleZ, Vector3D.Z_AXIS);
 			// render the player mesh from the current camera angle
-			player.render(viewmatrix, projectionmatrix);
-			scenePolycount += player.polycount;
+			ship.render(viewmatrix, projectionmatrix);
+			scenePolycount += ship.polycount;
 			// loop through all known entities and render them
 			for each (entity in props) {
 				entity.render(viewmatrix, projectionmatrix);
@@ -443,10 +449,16 @@ package {
 
 			if (gameinput.pressing.left) {
 				player.x -= moveAmount;
+				TweenLite.to(ship, 1, {rotationDegreesY: -20});
 			}
 
 			if (gameinput.pressing.right) {
 				player.x += moveAmount;
+				TweenLite.to(ship, 1, {rotationDegreesY: 20});
+			}
+
+			if (gameinput.pressing.left == 0 && gameinput.pressing.right == 0) {
+				TweenLite.to(ship, .5, {rotationDegreesY: 0});
 			}
 
 			if (gameinput.pressing.fire) {
@@ -483,7 +495,7 @@ package {
 
 		private function heartbeat():void {
 			trace('heartbeat at ' + gametimer.gameElapsedTime + 'ms');
-			trace('player ' + player.posString());
+			trace('ship ' + ship.posString());
 			trace('camera ' + chaseCamera.posString());
 			trace('particles active: ' + particleSystem.particlesActive);
 			trace('particles total: ' + particleSystem.particlesCreated);
@@ -493,8 +505,7 @@ package {
 		private function initShaders():void {
 			// A simple vertex shader which does a 3D transformation
 			// for simplicity, it is used by all four shaders
-			var vertexShaderAssembler:AGALMiniAssembler =
-					new AGALMiniAssembler();
+			var vertexShaderAssembler:AGALMiniAssembler = new AGALMiniAssembler();
 			vertexShaderAssembler.assemble
 			(
 					Context3DProgramType.VERTEX,
@@ -509,8 +520,7 @@ package {
 			);
 
 			// textured using UV coordinates
-			var fragmentShaderAssembler1:AGALMiniAssembler
-					= new AGALMiniAssembler();
+			var fragmentShaderAssembler1:AGALMiniAssembler = new AGALMiniAssembler();
 			fragmentShaderAssembler1.assemble
 			(
 					Context3DProgramType.FRAGMENT,
