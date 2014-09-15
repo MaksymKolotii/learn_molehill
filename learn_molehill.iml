@@ -9,8 +9,9 @@
         <compiler-options>
           <map>
             <entry key="compiler.debug.swf" value="true" />
-            <entry key="compiler.keep-generated-actionscript" value="false" />
+            <entry key="compiler.keep-generated-actionscript" value="true" />
           </map>
+          <option name="additionalOptions" value="-advanced-telemetry" />
         </compiler-options>
         <packaging-air-desktop use-generated-descriptor="false" custom-descriptor-path="$MODULE_DIR$/Main-app.xml" package-file-name="learn_molehill" />
         <packaging-android />
@@ -36,6 +37,21 @@
           </files-to-package>
           <AirSigningOptions keystore-path="D:/projects/casino/static/mobile/build/keys/WIN_Prod.p12" provisioning-profile-path="D:/projects/casino/static/mobile/build/keys/StardustCasino_ADHOC.mobileprovision" />
         </packaging-ios>
+      </configuration>
+      <configuration name="release" target-platform="Desktop" pure-as="true" main-class="Main" output-file="release.swf" output-folder="$MODULE_DIR$/bin">
+        <dependencies>
+          <sdk name="AIR_SDK" />
+        </dependencies>
+        <compiler-options>
+          <map>
+            <entry key="compiler.debug.swf" value="true" />
+            <entry key="compiler.keep-generated-actionscript" value="true" />
+          </map>
+          <option name="additionalOptions" value="-advanced-telemetry -debug=false" />
+        </compiler-options>
+        <packaging-air-desktop use-generated-descriptor="false" custom-descriptor-path="$MODULE_DIR$/Main-app.xml" package-file-name="release" />
+        <packaging-android />
+        <packaging-ios />
       </configuration>
     </configurations>
     <compiler-options />

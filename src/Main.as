@@ -25,6 +25,14 @@ package {
 	[SWF(frameRate=60, width=960, height=640, backgroundColor="#000000")]
 	public class Main extends Sprite {
 
+		// explosion start - 336 polygons
+		[Embed(source="../assets/explosion2.obj", mimeType="application/octet-stream")]
+		private var explosion1Data:Class;
+
+		// explosion end - 336 polygons
+		[Embed(source="../assets/explosion3.obj", mimeType="application/octet-stream")]
+		private var explosion2Data:Class;
+
 		// the player
 		[Embed(source="../assets/spaceship.obj", mimeType="application/octet-stream")]
 		private var myObjData5:Class;
@@ -73,6 +81,10 @@ package {
 		private var hudOverlayData:Class;
 		private var hudOverlay:Bitmap = new hudOverlayData();
 
+		[Embed(source="../assets/blueGlow.jpg")]
+		private var particleTextureBitmap:Class;
+		private var particleTextureData:Bitmap = new particleTextureBitmap();
+
 		// handles all timers for us
 		private var gametimer:GameTimer;
 		// handles keyboard and mouse inputs
@@ -83,6 +95,13 @@ package {
 		private var props:Vector.<Stage3dEntity>;
 		private var enemies:Vector.<Stage3dEntity>;
 		private var bullets:Vector.<Stage3dEntity>;
+
+		// used for our particle system demo
+		private var nextShootTime:uint = 0;
+		private var shootDelay:uint = 0;
+		private var explo:Stage3dParticle;
+		private var particleSystem:GameParticlesystem;
+		private var scenePolycount:uint = 0;
 
 		private var particles:Vector.<Stage3dEntity>;
 		// reusable entity pointer (for speed and to avoid GC)
@@ -101,6 +120,7 @@ package {
 		private var cratersTexture:Texture;
 		private var skyTexture:Texture;
 		private var puffTexture:Texture;
+		private var particle1Texture:Texture;
 
 		// used by gameStep()
 		private const moveSpeed:Number = 1.0; // units per ms
@@ -119,7 +139,6 @@ package {
 		private var projectionmatrix:PerspectiveMatrix3D =
 				new PerspectiveMatrix3D();
 		private var viewmatrix:Matrix3D = new Matrix3D();
-
 
 		public function Main() {
 			if (stage != null) {
@@ -262,6 +281,10 @@ package {
 			uploadTextureWithMipmaps(puffTexture, puffTextureData.bitmapData);
 			skyTexture = context3D.createTexture(skyTextureData.width, skyTextureData.height, Context3DTextureFormat.BGRA, false);
 			uploadTextureWithMipmaps(skyTexture, skyTextureData.bitmapData);
+
+			particle1Texture = context3D.createTexture(particleTextureData.width, particleTextureData.height, Context3DTextureFormat.BGRA, false);
+			uploadTextureWithMipmaps(particle1Texture, particleTextureData.bitmapData);
+
 			// Initialize our mesh data - requires shaders and textures first
 			initData();
 			// create projection matrix for our 3D scene
@@ -329,7 +352,7 @@ package {
 			engineGlow.cullingMode = Context3DTriangleFace.NONE;
 			engineGlow.y = -1.0;
 			engineGlow.scaleXYZ = 0.5;
-			particles.push(engineGlow);
+			props.push(engineGlow);
 
 			trace("Parsing the sky...");
 			sky = new Stage3dEntity(skyObjData, context3D, shaderProgram1, skyTexture);
@@ -344,6 +367,11 @@ package {
 			sky.scaleZ = 10000;
 			sky.rotationDegreesX = 30;
 			props.push(sky);
+
+			// create a particle system
+			particleSystem = new GameParticlesystem();
+			// define an explosion particle type
+			particleSystem.defineParticle("explosion", new Stage3dParticle(explosion1Data, context3D, particle1Texture, explosion2Data));
 		}
 
 		//--------------------------------------------------------------------------
@@ -368,15 +396,18 @@ package {
 			// only update the display once a second
 			if (delta >= 1000) {
 				var fps:Number = fpsTicks / delta * 1000;
-				fpsTf.text = fps.toFixed(1) + " fps";
+				fpsTf.text = fps.toFixed(1) + " fps (" + scenePolycount + " polygons); \ndraw calls = " + Globals.drawCalls;
 				fpsTicks = 0;
 				fpsLast = now;
 			}
+
+			Globals.drawCalls = 0;
 			// update the rest of the GUI
 			updateScore();
 		}
 
 		private function renderScene():void {
+			scenePolycount = 0;
 			viewmatrix.identity();
 			// look at the player
 			viewmatrix.append(chaseCamera.transform);
@@ -389,19 +420,14 @@ package {
 			viewmatrix.appendRotation(gameinput.cameraAngleZ, Vector3D.Z_AXIS);
 			// render the player mesh from the current camera angle
 			player.render(viewmatrix, projectionmatrix);
+			scenePolycount += player.polycount;
 			// loop through all known entities and render them
 			for each (entity in props) {
 				entity.render(viewmatrix, projectionmatrix);
+				scenePolycount += entity.polycount;
 			}
-			for each (entity in enemies) {
-				entity.render(viewmatrix, projectionmatrix);
-			}
-			for each (entity in bullets) {
-				entity.render(viewmatrix, projectionmatrix);
-			}
-			for each (entity in particles) {
-				entity.render(viewmatrix, projectionmatrix);
-			}
+			particleSystem.render(viewmatrix, projectionmatrix);
+			scenePolycount += particleSystem.totalpolycount;
 		}
 
 		private function gameStep(frameMs:uint):void {
@@ -422,7 +448,21 @@ package {
 			if (gameinput.pressing.right) {
 				player.x += moveAmount;
 			}
-			//if (pressing.fire) // etc...
+
+			if (gameinput.pressing.fire) {
+				if (gametimer.gameElapsedTime >= nextShootTime) {
+					nextShootTime = gametimer.gameElapsedTime + shootDelay;
+					// random location somewhere ahead of player
+					var groundzero:Matrix3D = new Matrix3D;
+					groundzero.prependTranslation(
+									player.x + Math.random() * 200 - 100,
+									player.y + Math.random() * 100 - 50,
+									player.z + Math.random() * -1000 - 250);
+					// create a new particle (or reuse an inactive one)
+					particleSystem.spawn("explosion", groundzero, 1500);
+				}
+			}
+
 			// follow the player
 			chaseCamera.x = player.x;
 			chaseCamera.y = player.y + 1.5; // above
@@ -436,12 +476,18 @@ package {
 			// animate the engine glow - spin fast and pulsate slowly
 			engineGlow.rotationDegreesZ += 10 * frameMs;
 			engineGlow.scaleXYZ = Math.cos(gametimer.gameElapsedTime / 66) / 20 + 0.5;
+
+			// advance all particles based on time
+			particleSystem.step(frameMs);
 		}
 
 		private function heartbeat():void {
 			trace('heartbeat at ' + gametimer.gameElapsedTime + 'ms');
 			trace('player ' + player.posString());
 			trace('camera ' + chaseCamera.posString());
+			trace('particles active: ' + particleSystem.particlesActive);
+			trace('particles total: ' + particleSystem.particlesCreated);
+			trace('particles polies: ' + particleSystem.totalpolycount);
 		}
 
 		private function initShaders():void {

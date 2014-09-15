@@ -228,6 +228,7 @@ package {
 			}
 
 			// render it
+			Globals.drawCalls++;
 			context.drawTriangles(mesh.indexBuffer, 0, mesh.indexBufferCount);
 		}
 
