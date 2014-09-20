@@ -246,9 +246,9 @@ package {
 				(
 						Context3DProgramType.VERTEX,
 						// scale the starting position
-								"mul vt0, va0, vc4.xxxx\n" +
+								"mul vt0, va0, vc4.wwww\n" +//xxxx
 							// scale the ending position
-								"mul vt1, va2, vc4.yyyy\n" +
+								"mul vt1, va2, vc4.wwww\n" +//yyyy
 							// interpolate the two positions
 								"add vt2, vt0, vt1\n" +
 							// 4x4 matrix multiply to get camera angle
