@@ -1,4 +1,9 @@
+// Game actor class version 1.1
+// an entity that can move, shoot, spawn particles
+// trigger sounds and detect collisions
+//
 package {
+
 	import flash.display3D.Context3D;
 	import flash.display3D.Program3D;
 	import flash.display3D.textures.Texture;
@@ -6,8 +11,7 @@ package {
 	import flash.geom.Vector3D;
 	import flash.media.Sound;
 
-	public class GameActor {
-
+	public class GameActor extends Stage3dEntity {
 		// game-related stats
 		public var name:String = ''; // unique
 		public var classname:String = ''; // not unique
@@ -23,7 +27,6 @@ package {
 		public var radius:Number = 1; // used for sphere collision
 		public var aabbMin:Vector3D = new Vector3D(1, 1, 1, 1);
 		public var aabbMax:Vector3D = new Vector3D(1, 1, 1, 1);
-
 		// callback functions
 		public var runConstantly:Function;
 		public var runConstantlyDelay:uint = 1000;
@@ -40,8 +43,7 @@ package {
 		public var scaleVelocity:Vector3D;
 		public var tintVelocity:Vector3D;
 		// automatically shoot bullets when 'near' an enemy
-		public var bullets:GameActorPool;
-
+		public var bullets:GameActorpool;
 		public var shootName:String = '';
 		public var shootDelay:uint = 4000;
 		public var shootNext:uint = 0;
@@ -67,24 +69,25 @@ package {
 		public var soundWhenCreated:Sound;
 
 		public function GameActor(mydata:Class = null, mycontext:Context3D = null, myshader:Program3D = null, mytexture:Texture = null, modelscale:Number = 1, flipAxis:Boolean = true, flipTexture:Boolean = true) {
-			super(mydata, mycontext, myshader, mytexture, modelscale, flipAxis, flipTexture);
+			super(mydata, mycontext, myshader, mytexture,
+					modelscale, flipAxis, flipTexture);
 		}
 
-		//--------------------------------------------------------------------------
-		//   							PUBLIC METHODS
-		//--------------------------------------------------------------------------
 		public function step(ms:uint):void {
 			if (!active) return;
+
 			age += ms;
 			stepCounter++;
+
 			if (health <= 0) {
 				//trace(name + " out of health.");
 				if (particles && spawnWhenNoHealth) {
 					trace(name + " exploding into " + spawnWhenNoHealth);
-					var spawnxform:Matrix3D = new Matrix3D();
-					spawnxform.position = position.clone();
-					//particles.spawn(spawnWhenNoHealth,transform);
-					particles.spawn(spawnWhenNoHealth, spawnxform, 5555, 0, 10);
+					particles.spawn(spawnWhenNoHealth, transform);
+					// if we need to ignore the scale etc
+					//var sxform:Matrix3D = new Matrix3D();
+					//sxform.position = position.clone();
+					//particles.spawn(spawnWhenNoHealth,sxform,5555,0,10);
 				}
 				if (soundWhenNoHealth)
 					soundWhenNoHealth.play();
@@ -93,18 +96,17 @@ package {
 				die();
 				return;
 			}
+
 			if ((ageMax != 0) && (age >= ageMax)) {
 				//trace(name + " old age.");
-
-				if (particles && spawnWhenMaxAge) {
+				if (particles && spawnWhenMaxAge)
 					particles.spawn(spawnWhenMaxAge, transform);
-					if (soundWhenMaxAge)
-						soundWhenMaxAge.play();
-					if (runWhenMaxAge != null)
-						runWhenMaxAge();
-					die();
-					return;
-				}
+				if (soundWhenMaxAge)
+					soundWhenMaxAge.play();
+				if (runWhenMaxAge != null)
+					runWhenMaxAge();
+				die();
+				return;
 			}
 
 			if (posVelocity) {
@@ -112,11 +114,13 @@ package {
 				y += posVelocity.y * (ms / 1000);
 				z += posVelocity.z * (ms / 1000);
 			}
+
 			if (rotVelocity) {
 				rotationDegreesX += rotVelocity.x * (ms / 1000);
 				rotationDegreesY += rotVelocity.y * (ms / 1000);
 				rotationDegreesZ += rotVelocity.z * (ms / 1000);
 			}
+
 			if (scaleVelocity) {
 				scaleX += scaleVelocity.x * (ms / 1000);
 				scaleY += scaleVelocity.y * (ms / 1000);
@@ -134,6 +138,7 @@ package {
 					}
 				}
 			}
+
 			// maybe trigger a sound
 			if (visible && soundConstantlyDelay > 0) {
 				if (soundConstantly) {
@@ -151,21 +156,29 @@ package {
 				if (age >= shootNext) {
 					shootNext = age + shootDelay +
 							(Math.random() * shootRandomDelay);
-					if (shootDist < 0) {
+
+					if (shootDist < 0)
 						shouldShoot = true;
-					} else if (shootAt && (shootDist > 0) && (Vector3D.distance(position, shootAt.position) <= shootDist)) {
+					else if (shootAt &&
+							(shootDist > 0) &&
+							(Vector3D.distance(
+									position, shootAt.position) <= shootDist)) {
 						shouldShoot = true;
 					}
+
 					if (shouldShoot) {
 						var b:GameActor =
 								bullets.spawn(shootName, transform);
+
 						// remember who this bullet belongs to
 						b.owner = this;
+
 						// aim towards an enemy?
 						if (shootAt) {
 							b.transform.pointAt(
 									shootAt.transform.position);
 							b.rotationDegreesY -= 90;
+
 							b.posVelocity =
 									b.transform.position.subtract(
 											shootAt.transform.position);
@@ -176,9 +189,9 @@ package {
 						// otherwise we simply fire in whatever
 						// direction was given during spawn
 						// when the game set posVelocity
-						if (shootSound) {
+
+						if (shootSound)
 							shootSound.play();
-						}
 					}
 				}
 			}
@@ -272,20 +285,23 @@ package {
 			stepCounter = 0;
 			active = true;
 			visible = true;
+
 			// don't shoot immediately
 			shootNext = Math.random() * shootRandomDelay;
+
 			if (pos) {
 				transform = pos.clone();
 			}
+
 			if (soundWhenCreated)
 				soundWhenCreated.play();
-			if (runWhenCreated != null) {
-				runWhenCreated();
-			}
 
-			if (particles && spawnWhenCreated) {
+			if (runWhenCreated != null)
+				runWhenCreated();
+
+			if (particles && spawnWhenCreated)
 				particles.spawn(spawnWhenCreated, transform);
-			}
+
 			//trace("Respawned " + name + " at " + posString());
 		}
 
@@ -315,19 +331,24 @@ package {
 			if (checkme.owner == this) return false;
 			// don't check if no radius
 			if (radius == 0 || checkme.radius == 0) return false;
-			var dist:Number = Vector3D.distance(position, checkme.position);
+
+			var dist:Number =
+					Vector3D.distance(position, checkme.position);
+
 			if (dist <= (radius + checkme.radius)) {
 				// trace("Collision detected at distance="+dist);
 				touching = checkme; // remember who hit us
 				return true;
 			}
+
 			// default: too far away
 			// trace("No collision. Dist = "+dist);
 			return false;
+
 		}
 
 		// axis-aligned bounding box collision detection
-// not used in the example game but here for convenience
+		// not used in the example game but here for convenience
 		private function aabbCollision(min1:Vector3D, max1:Vector3D, min2:Vector3D, max2:Vector3D):Boolean {
 			if (min1.x > max2.x ||
 					min1.y > max2.y ||
@@ -353,22 +374,19 @@ package {
 					checkme.aabbMin == null ||
 					checkme.aabbMax == null)
 				return false;
-			if (aabbCollision(position + aabbMin, position + aabbMax, checkme.position + checkme.aabbMin, checkme.position + checkme.aabbMax)) {
+
+			if (aabbCollision(
+							position + aabbMin,
+							position + aabbMax,
+							checkme.position + checkme.aabbMin,
+							checkme.position + checkme.aabbMax)) {
 				touching = checkme; // remember who hit us
 				return true;
 			}
 
+			// trace("No collision.");
 			return false;
 		}
 
-		//--------------------------------------------------------------------------
-		//   					  PRIVATE\PROTECTED METHODS
-		//--------------------------------------------------------------------------
-		//--------------------------------------------------------------------------
-		//   							HANDLERS
-		//--------------------------------------------------------------------------
-		//--------------------------------------------------------------------------
-		//  							GETTERS/SETTERS
-		//--------------------------------------------------------------------------
-	}
-}
+	} // end package
+} // end class

@@ -1,13 +1,18 @@
-package {
+// Game actor pool version 1.2
+// creates a pool of actor entities on demand
+// and reuses inactive ones them whenever possible
+//
+package
+{
+	import flash.utils.Dictionary;
 	import flash.geom.Matrix3D;
 	import flash.geom.Vector3D;
-	import flash.utils.Dictionary;
+	import GameActor;
 
-	public class GameActorPool {
-
+	public class GameActorpool
+	{
 		// list of string names of each known kind
 		private var allNames:Vector.<String>;
-
 		// contains one source actor for each kind
 		private var allKinds:Dictionary;
 		// contains many cloned actors of various kinds
@@ -27,37 +32,48 @@ package {
 		// perfect for rooms/portals/pvs/lod
 		public var visible:Boolean = true;
 
-		public function GameActorPool() {
+		// class constructor
+		public function GameActorpool()
+		{
 			trace("Actor pool created.");
 			allKinds = new Dictionary();
 			allActors = new Dictionary();
 			allNames = new Vector.<String>();
 		}
 
-		//--------------------------------------------------------------------------
-		//   							PUBLIC METHODS
-		//--------------------------------------------------------------------------
 		// names a particular kind of actor
-		public function defineActor(name:String, cloneSource:GameActor):void {
+		public function defineActor(
+				name:String, cloneSource:GameActor):void
+		{
 			trace("New actor type defined: " + name);
 			allKinds[name] = cloneSource;
 			allNames.push(name);
 		}
 
-		public function step(ms:uint, collisionDetection:Function = null, collisionReaction:Function = null):void {
+		public function step(ms:uint,
+		                     collisionDetection:Function = null,
+		                     collisionReaction:Function = null):void
+		{
 			// do nothing if entire pool is inactive (paused)
 			if (!active) return;
+
 			actorsActive = 0;
-			for each (actorList in allActors) {
-				for each (actor in actorList) {
-					if (actor.active) {
+			for each (actorList in allActors)
+			{
+				for each (actor in actorList)
+				{
+					if (actor.active)
+					{
 						actorsActive++;
 						actor.step(ms);
-						if (actor.collides && (collisionDetection != null)) {
+
+						if (actor.collides &&
+								(collisionDetection != null))
+						{
 							actor.touching = collisionDetection(actor);
-							if (actor.touching && (collisionReaction != null)) {
+							if (actor.touching &&
+									(collisionReaction != null))
 								collisionReaction(actor, actor.touching);
-							}
 						}
 					}
 				}
@@ -65,16 +81,21 @@ package {
 		}
 
 		// renders all active actors
-		public function render(view:Matrix3D, projection:Matrix3D):void {
+		public function render(view:Matrix3D,projection:Matrix3D):void
+		{
 			// do nothing if entire pool is invisible
 			if (!visible) return;
+
 			totalpolycount = 0;
 			totalrendered = 0;
 			var stateChange:Boolean = true;
-			for each (actorList in allActors) {
+			for each (actorList in allActors)
+			{
 				stateChange = true; // v2
-				for each (actor in actorList) {
-					if (actor.active && actor.visible) {
+				for each (actor in actorList)
+				{
+					if (actor.active && actor.visible)
+					{
 						totalpolycount += actor.polycount;
 						totalrendered++;
 						actor.render(view, projection, stateChange);
@@ -84,14 +105,20 @@ package {
 		}
 
 		// either reuse an inactive actor or create a new one
-// returns the actor that was spawned for further use
-		public function spawn(name:String, pos:Matrix3D = null):GameActor {
+		// returns the actor that was spawned for further use
+		public function spawn(
+				name:String, pos:Matrix3D = null):GameActor
+		{
 			var spawned:GameActor = null;
 			var reused:Boolean = false;
-			if (allKinds[name]) {
-				if (allActors[name]) {
-					for each (actor in allActors[name]) {
-						if (!actor.active) {
+			if (allKinds[name])
+			{
+				if (allActors[name])
+				{
+					for each (actor in allActors[name])
+					{
+						if (!actor.active)
+						{
 							//trace("A " + name + " was reused.");
 							actor.respawn(pos);
 							spawned = actor;
@@ -100,7 +127,8 @@ package {
 						}
 					}
 				}
-				else {
+				else
+				{
 					//trace("This is the first " + name + " actor.");
 					allActors[name] = new Vector.<GameActor>();
 				}
@@ -114,35 +142,39 @@ package {
 					spawned.name = name + actorsCreated;
 					spawned.respawn(pos);
 					allActors[name].push(spawned);
-					//trace("Total " + name + "s: " + allActors[name].length);
+					//trace("Total " + name + "s: "
+					//+ allActors[name].length);
 					return spawned;
 				}
 			}
-			else {
+			else
+			{
 				trace("ERROR: unknown actor type: " + name);
 			}
 			return spawned;
 		}
 
-		public function colliding(checkthis:GameActor):GameActor {
+		public function colliding(checkthis:GameActor):GameActor
+		{
 			if (!checkthis.visible) return null;
 			if (!checkthis.active) return null;
 			var hit:GameActor;
 			var str:String;
 			for each (str in allNames)
-				for each (hit in allActors[str]) {
+				for each (hit in allActors[str])
+				{
 					if (hit.visible &&
 							hit.active &&
-							checkthis.colliding(hit)) {
+							checkthis.colliding(hit))
+					{
 						//trace(checkthis.name +
-						// " is colliding with " + hit.name);
+						//	" is colliding with " + hit.name);
 						return hit;
 					}
-					else {
-						//trace(checkthis.name + " is NOT colliding with " +
-						hit.name
-					)
-						;
+					else
+					{
+						//trace(checkthis.name +
+						//" is NOT colliding with " + hit.name);
 					}
 				}
 			return null;
@@ -150,12 +182,24 @@ package {
 
 		// optimize the scene: make actors that are far away
 		// or outside a bounding box invisible
-		public function hideDistant(pos:Vector3D, // scaled by radius:
-		                            maxdist:Number = 500, // radius is added to these:
-		                            maxz:Number = 0, minz:Number = 0, maxy:Number = 0, miny:Number = 0, maxx:Number = 0, minx:Number = 0):void {
-			for each (actorList in allActors) {
-				for each (actor in actorList) {
-					if (actor.active) {
+		public function hideDistant(pos:Vector3D,
+		                            // scaled by radius:
+		                            maxdist:Number = 500,
+		                            // radius is added to these:
+		                            maxz:Number = 0,
+		                            minz:Number = 0,
+		                            maxy:Number = 0,
+		                            miny:Number = 0,
+		                            maxx:Number = 0,
+		                            minx:Number = 0
+				):void
+		{
+			for each (actorList in allActors)
+			{
+				for each (actor in actorList)
+				{
+					if (actor.active)
+					{
 						if ((Vector3D.distance(actor.position, pos)
 								>= (maxdist * actor.radius)) ||
 							// if these are set to nonzero,
@@ -172,10 +216,12 @@ package {
 										(actor.position.y + actor.radius))) ||
 								(minz != 0 && ((pos.z + minz) >
 										(actor.position.z + actor.radius)))
-								) {
+								)
+						{
 							actor.visible = false;
 						}
-						else {
+						else
+						{
 							actor.visible = true;
 						}
 					}
@@ -183,11 +229,14 @@ package {
 			}
 		}
 
-		// to "clear" the scene, "kill" all known entities
+		// v2 to "clear" the scene, "kill" all known entities
 		// good for in between new levels ar after a gameover
-		public function destroyAll():void {
-			for each (actorList in allActors) {
-				for each (actor in actorList) {
+		public function destroyAll():void
+		{
+			for each (actorList in allActors)
+			{
+				for each (actor in actorList)
+				{
 					// ready to be respawned
 					actor.active = false;
 					actor.visible = false;
@@ -195,14 +244,5 @@ package {
 			}
 		}
 
-		//--------------------------------------------------------------------------
-		//   					  PRIVATE\PROTECTED METHODS
-		//--------------------------------------------------------------------------
-		//--------------------------------------------------------------------------
-		//   							HANDLERS
-		//--------------------------------------------------------------------------
-		//--------------------------------------------------------------------------
-		//  							GETTERS/SETTERS
-		//--------------------------------------------------------------------------
-	}
-}
+	} // end class
+} // end package
